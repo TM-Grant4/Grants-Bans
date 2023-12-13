@@ -1,10 +1,10 @@
 /**
-░██████╗░██████╗░░█████╗░███╗░░██╗████████╗░██████╗  ██████╗░░█████╗░███╗░░██╗░██████╗
-██╔════╝░██╔══██╗██╔══██╗████╗░██║╚══██╔══╝██╔════╝  ██╔══██╗██╔══██╗████╗░██║██╔════╝
-██║░░██╗░██████╔╝███████║██╔██╗██║░░░██║░░░╚█████╗░  ██████╦╝███████║██╔██╗██║╚█████╗░
-██║░░╚██╗██╔══██╗██╔══██║██║╚████║░░░██║░░░░╚═══██╗  ██╔══██╗██╔══██║██║╚████║░╚═══██╗
-╚██████╔╝██║░░██║██║░░██║██║░╚███║░░░██║░░░██████╔╝  ██████╦╝██║░░██║██║░╚███║██████╔╝
-░╚═════╝░╚═╝░░╚═╝╚═╝░░╚═╝╚═╝░░╚══╝░░░╚═╝░░░╚═════╝░  ╚═════╝░╚═╝░░╚═╝╚═╝░░╚══╝╚═════╝░
+░██████╗░██████╗░░█████╗░███╗░░██╗████████╗░██████╗░░░██████╗░░█████╗░███╗░░██╗░██████╗
+██╔════╝░██╔══██╗██╔══██╗████╗░██║╚══██╔══╝██╔════╝ ░░░██╔══██╗██╔══██╗████╗░██║██╔════╝
+██║░░██╗░██████╔╝███████║██╔██╗██║░░░██║░░░╚█████╗░░░░  ██████╦╝███████║██╔██╗██║╚█████╗░
+██║░░╚██╗██╔══██╗██╔══██║██║╚████║░░░██║░░░░╚═══██╗  ░░░██╔══██╗██╔══██║██║╚████║░╚═══██╗
+╚██████╔╝██║░░██║██║░░██║██║░╚███║░░░██║░░░██████╔╝ ░░░ ██████╦╝██║░░██║██║░╚███║██████╔╝
+░╚═════╝░╚═╝░░╚═╝╚═╝░░╚═╝╚═╝░░╚══╝░░░╚═╝░░░╚═════╝░  ░░░╚═════╝░╚═╝░░╚═╝╚═╝░░╚══╝╚═════╝░
 
 
     If anyone edits or uses this code on their own projects please contact: 
@@ -63,18 +63,19 @@ class db {
             }
         ).replaceAll('"', "*"), 0);
     }
-    removeBan(player) {
+    removeBan(player, time, reason) {
         const scoreboard = world.scoreboard.getObjective('BannedPlayers');
         scoreboard.removeParticipant(
-            JSON.stringify(
-                {
-                    "name": player,
-                    "time": this.getBanTime(player),
-                    "reason": this.getBanReason(player)
-                }).replaceAll('"', "*")
-        )
+        JSON.stringify(
+            {
+                 "name": player,
+                 "time": time,
+                 "reason": reason
+            }
+        ).replaceAll('"', "*"))
+        world.sendMessage("Unbanned " + player)
     }
-    getBanTime(player) {
+    async getBanTime(player) {
         const scoreboard = world.scoreboard.getObjective('BannedPlayers');
         scoreboard.getParticipants().forEach((s) => {
             if (JSON.parse(s.displayName.replaceAll("*", '"')).name === player) {
@@ -82,7 +83,7 @@ class db {
             }
         })
     }
-    getBanReason(player) {
+    async getBanReason(player) {
         const scoreboard = world.scoreboard.getObjective('BannedPlayers');
         scoreboard.getParticipants().forEach((s) => {
             if (JSON.parse(s.displayName.replaceAll("*", '"')).name === player) {
@@ -94,12 +95,12 @@ class db {
         const scoreboard = world.scoreboard.getObjective('BannedPlayers');
         const bans = [];
         scoreboard.getParticipants().forEach((b) => {
-            b = JSON.parse(s.displayName.replaceAll("*", '"'));
+            const bans2 = JSON.parse(b.displayName.replaceAll("*", '"'));
             bans.push(
                 {
-                    "name": b.name,
-                    "time": b.time,
-                    "reason": b.reason
+                    "name": bans2.name,
+                    "time": bans2.time,
+                    "reason": bans2.reason
                 }
             )
         })
@@ -121,7 +122,7 @@ function banMenuSelect(player) {
             banMenuSelect2(player)
         }
         if (r.selection === 1) {
-            unbanMenu(player, 0)
+            unbanMenu(player, 1)
         }
     })
 }
@@ -145,12 +146,14 @@ function banMenuSelect2(player) {
 
 function banOnline(player) {
     const f = new ModalFormData();
+    const allPlayers = world.getAllPlayers().map((p) => p.name);
     f.title("§4Ban Menu§r");
-    f.dropdown("Select a player!", world.getAllPlayers().map((p) => p.name));
-    f.textField("Example: 30m 2h 7d")
+    f.dropdown("Select a player!", allPlayers);
+    f.textField("How long do you want to ban this player for", "Example: 30m 2h 7d")
     f.textField("Why are you banning this player?", "Example: Hacking (Using fly hacks and nuker hacks)")
     f.show(player).then((r) => {
         let [player2, time, reason] = r.formValues
+        player2 = allPlayers[player2]
         time = parseTime(time);
         database.addBan(player2, time, reason)
         player.runCommand(`kick "${player2}" ${reason}`);
@@ -177,7 +180,9 @@ function unbanMenu(player, page) {
     const allBans = database.getBans();
     const f = new ActionFormData();
     f.title("§4Ban Menu§r");
-
+    if (allBans.length === 0) {
+     return errorForm(player, "nobans")
+    }
     /**
      * Credit: 
      *  - Discord:
@@ -188,7 +193,7 @@ function unbanMenu(player, page) {
     const endIndex = Math.min(startIndex + 10, allBans.length);
     for (let i = startIndex; i < endIndex; i++) {
         const ban = allBans[i];
-        f.button(`${ban.name}\n${ban.time - Date.now() / 1000 / 60}M`);
+        f.button(`${ban.name}\n${Math.round((ban.time - Date.now()) / 1000 / 60 )} Minutes`);
     }
     if (startIndex > 0) {
         f.button("<- Back");
@@ -210,19 +215,40 @@ function unbanMenu(player, page) {
 
 function unbanConfirmMenu(player, ban) {
     const f = new MessageFormData();
+    let time = "";
+    if (Math.round((ban.time - Date.now()) / 1000 / 60 ) > 0) {
+     time = Math.round((ban.time - Date.now()) / 1000 )  + " Minutes"
+    } else {
+     time = Math.round((ban.time - Date.now()) / 1000 / 60 ) + " Seconds"
+    }
     f.title("§4Ban Menu§r");
-    f.body(`§bAre you sure you would like to unban §d${ban.name}?\n\n§cName: §d${ban.name},\n§cTime: §d${ban.time - Date.now() / 1000 / 60}M,\n§cReason: §d${ban.reason}§r`);
+    f.body(`§bAre you sure you would like to unban §d${ban.name}?\n\n§cName: §d${ban.name},\n§cTime: §d${time},\n§cReason: §d${ban.reason}§r`);
     f.button1("§aConfirm§r");
     f.button2("§cDecline");
     f.show(player).then((r) => {
         if (r.selection == 0) {
             player.sendMessage("§aYou have unbanned " + ban.name + "!");
-            database.removeBan(ban.name);
+            database.removeBan(ban.name, ban.time, ban.reason);
         }
         if (r.selection == 1) {
             player.sendMessage("§cYou have stopped the unban process!");
         }
     })
+}
+
+function errorForm(player, reason) {
+ const f = new MessageFormData();
+ f.title("§4ERROR!§r");
+ if (reason === "nobans") {
+  f.body("There are currently no bans active. ")
+ }
+ f.button1("§aBan A Player")
+ f.button2("§cClose!")
+ f.show(player).then((r) => {
+  if (r.selection == 0) {
+   banMenuSelect2(player)
+  }
+ })
 }
 
 /** Removed for performance and by request of @gameza_src
@@ -244,15 +270,63 @@ system.runInterval(() => {
 world.afterEvents.playerSpawn.subscribe((data) => {
     const player = data.player;
     if (data.initialSpawn) {
-        if (database.getBans(names).map((b) => b.name).includes(player.name)) {
+        //if (database.getBans().map((b) => b.name).includes(player.name)) {
             const banTime = database.getBanTime(player.name);
             const reason = database.getBanReason(player.name);
-            if (banTime < Date.now()) {
-                player.runCommand(`kick "${player.name}" \n    Grant's Ban System:\nReason: ${reason},\nTime: ${(banTime - Date.now()) / 1000 / 60}M!`)
+            if (Date.now() <= banTime) {
+                player.runCommand(`kick "${player.name}" \n    Grant's Ban System:\nReason: ${reason},\nTime: ${(banTime - Date.now()) / 1000 / 60} Minutes!`)
                 world.sendMessage(`${player.name} has tried to join while banned!\nTime: ${(banTime - Date.now()) / 1000 / 60}M, \nReason: ${reason}.`)
             } else {
-                database.removeBan(player.name)
+                database.removeBan(player.name, banTime, reason)
             }
-        }
+        //}
     }
+})
+
+system.runInterval(() => {
+    for (const player of world.getAllPlayers()) {
+        //if (database.getBans().map(p => p.name).includes(player.name)) {
+            const banTime = database.getBanTime(player.name);
+            const reason = database.getBanReason(player.name);
+            
+            // Check if the ban has expired
+            if (Date.now() >= banTime) {
+                // Remove the ban
+                database.removeBan(player.name, banTime, reason)
+                player.sendMessage(player.name + " " + banTime + " " + reason)
+            }
+        //}
+    }
+});
+
+
+world.beforeEvents.chatSend.subscribe(async (data) => {
+ if (data.message.startsWith("?bans")) {
+  data.cancel = true;
+  const bans = []
+  world.scoreboard.getObjective("BannedPlayers").getParticipants().forEach((b) => {
+   bans.push(b.displayName);
+  })
+  data.sender.sendMessage("Here are the current bans:\n" + JSON.stringify(database.getBans()))// bans.join("\n").toString().replaceAll("*", '"'))
+ }
+ if (data.message.startsWith("?time")) {
+  data.cancel = true;
+  data.sender.sendMessage(Date.now().toString())
+ }
+ if (data.message.startsWith("?bancheck")) {
+  data.cancel = true;
+  const ban = {
+   name: data.sender.name,
+   time: await database.getBanTime(data.sender.name),
+   reason: await database.getBanReason(data.sender.name)
+  }
+
+            
+            // Check if the ban has expired
+            if (Date.now() >= parseInt(ban.time)) {
+                // Remove the ban
+            database.removeBan(data.sender.name, ban.time, ban.reason);
+                data.sender.sendMessage(data.sender.name + " " + ban.time + " " + ban.reason)
+            }
+ }
 })
